@@ -1,12 +1,12 @@
 import { NavLink } from "react-router-dom";
 
 const navItems = [
-  { to: "/", label: "Dashboard" },
-  { to: "/crm", label: "CRM" },
-  { to: "/tasks", label: "Tasks" },
-  { to: "/messages", label: "Messages" },
-  { to: "/content", label: "Content Planner" },
-  { to: "/calendar", label: "Calendar" },
+  { to: "/app", label: "Dashboard" },
+  { to: "/app/crm", label: "CRM" },
+  { to: "/app/tasks", label: "Tasks" },
+  { to: "/app/messages", label: "Messages" },
+  { to: "/app/content", label: "Content Planner" },
+  { to: "/app/calendar", label: "Calendar" },
 ];
 
 const Sidebar = () => (
@@ -17,7 +17,7 @@ const Sidebar = () => (
         <NavLink
           key={item.to}
           to={item.to}
-          end={item.to === "/"}
+          end={item.to === "/app"}
           className={({ isActive }) =>
             `block rounded px-3 py-2 text-sm transition ${
               isActive ? "bg-indigo-500" : "bg-slate-800 hover:bg-slate-700"

@@ -22,6 +22,9 @@ const Layout = ({ children }) => {
           </button>
         </header>
         {children}
+        <footer className="mt-8 rounded-lg bg-white p-3 text-center text-xs text-slate-500 shadow-sm">
+          All rights reserved. Built by Md Julfikar Hasan.
+        </footer>
       </main>
     </div>
   );

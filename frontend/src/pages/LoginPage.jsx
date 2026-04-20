@@ -18,7 +18,7 @@ const LoginPage = () => {
       } else {
         await login(form.email, form.password);
       }
-      navigate("/");
+      navigate("/app");
     } catch (err) {
       setError(err.response?.data?.message || "Authentication failed");
     }
