@@ -1,45 +1,98 @@
 import { useEffect, useState } from "react";
-import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
+import {
+  createRecord,
+  deleteRecord,
+  listRecords,
+  toJsDate,
+  updateRecord,
+} from "../services/firestoreService";
 
 const leadColumns = ["new", "contacted", "qualified", "proposal", "won", "lost"];
 
 const CRMPage = () => {
+  const { user } = useAuth();
   const [clients, setClients] = useState([]);
   const [leads, setLeads] = useState([]);
   const [clientForm, setClientForm] = useState({ name: "", email: "", phone: "", status: "lead" });
   const [leadForm, setLeadForm] = useState({ name: "", source: "", status: "new" });
 
   const loadData = async () => {
-    const [clientRes, leadRes] = await Promise.all([api.get("/clients"), api.get("/leads")]);
-    setClients(clientRes.data);
-    setLeads(leadRes.data);
+    if (!user?.id) return;
+    const [clientsData, leadsData] = await Promise.all([
+      listRecords("clients", user.id),
+      listRecords("leads", user.id),
+    ]);
+    const now = new Date();
+    const formattedClients = clientsData.map((client) => {
+      const lastContact = toJsDate(client.last_contact_date);
+      const daysSinceContact = Math.floor(
+        (now.getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      return { ...client, needs_follow_up: daysSinceContact > 3 };
+    });
+    setClients(formattedClients);
+    setLeads(leadsData);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user?.id]);
 
   const addClient = async (event) => {
     event.preventDefault();
-    await api.post("/clients", clientForm);
+    await createRecord(
+      "clients",
+      { ...clientForm, last_contact_date: new Date().toISOString() },
+      user.id
+    );
     setClientForm({ name: "", email: "", phone: "", status: "lead" });
     loadData();
   };
 
   const addLead = async (event) => {
     event.preventDefault();
-    await api.post("/leads", leadForm);
+    const leadId = await createRecord("leads", leadForm, user.id);
+    // Automation: create follow-up task whenever a new lead is created.
+    await createRecord(
+      "tasks",
+      {
+        title: `Follow up with lead: ${leadForm.name}`,
+        description: "Automated follow-up created from new lead.",
+        due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        status: "todo",
+        related_lead: leadId,
+      },
+      user.id
+    );
     setLeadForm({ name: "", source: "", status: "new" });
     loadData();
   };
 
   const deleteClient = async (id) => {
-    await api.delete(`/clients/${id}`);
+    await deleteRecord("clients", id);
     loadData();
   };
 
   const updateLeadStatus = async (id, status) => {
-    await api.put(`/leads/${id}`, { status });
+    await updateRecord("leads", id, { status });
+    loadData();
+  };
+
+  const updateClientStatus = async (client, newStatus) => {
+    const previousStatus = client.status;
+    await updateRecord("clients", client.id, { status: newStatus });
+    if (previousStatus !== newStatus) {
+      await createRecord(
+        "activityLogs",
+        {
+          clientId: client.id,
+          action: "CLIENT_STATUS_CHANGED",
+          details: `Status changed from ${previousStatus} to ${newStatus}`,
+        },
+        user.id
+      );
+    }
     loadData();
   };
 
@@ -82,7 +135,7 @@ const CRMPage = () => {
         <h3 className="mb-3 text-lg font-semibold">Client List</h3>
         <div className="space-y-2">
           {clients.map((client) => (
-            <div key={client._id} className="flex items-center justify-between rounded border p-3">
+            <div key={client.id} className="flex items-center justify-between rounded border p-3">
               <div>
                 <p className="font-medium">{client.name}</p>
                 <p className="text-sm text-slate-500">{client.email} | {client.status}</p>
@@ -90,7 +143,23 @@ const CRMPage = () => {
                   <p className="text-xs text-amber-600">No contact in 3+ days, follow-up needed.</p>
                 )}
               </div>
-              <button className="rounded bg-red-500 px-2 py-1 text-sm text-white" onClick={() => deleteClient(client._id)}>Delete</button>
+              <div className="flex gap-2">
+                <select
+                  className="rounded border p-1 text-xs"
+                  value={client.status}
+                  onChange={(e) => updateClientStatus(client, e.target.value)}
+                >
+                  <option value="lead">lead</option>
+                  <option value="active">active</option>
+                  <option value="closed">closed</option>
+                </select>
+                <button
+                  className="rounded bg-red-500 px-2 py-1 text-sm text-white"
+                  onClick={() => deleteClient(client.id)}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -104,13 +173,13 @@ const CRMPage = () => {
               <h4 className="mb-2 text-sm font-semibold uppercase">{column}</h4>
               <div className="space-y-2">
                 {leads.filter((lead) => lead.status === column).map((lead) => (
-                  <div key={lead._id} className="rounded bg-white p-2 text-sm shadow">
+                  <div key={lead.id} className="rounded bg-white p-2 text-sm shadow">
                     <p className="font-medium">{lead.name}</p>
                     <p className="text-xs text-slate-500">{lead.source || "No source"}</p>
                     <select
                       className="mt-2 w-full rounded border p-1 text-xs"
                       value={lead.status}
-                      onChange={(e) => updateLeadStatus(lead._id, e.target.value)}
+                      onChange={(e) => updateLeadStatus(lead.id, e.target.value)}
                     >
                       {leadColumns.map((status) => (
                         <option key={status} value={status}>

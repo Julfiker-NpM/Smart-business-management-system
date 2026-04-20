@@ -56,58 +56,39 @@ Backend (`backend/.env`)
 - `NODE_ENV`
 
 Frontend (`frontend/.env`)
-- `VITE_API_BASE_URL`
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
 
-## Deploy (Atlas + Render + Vercel)
+## Deploy (Firebase + Vercel)
 
-This is the easiest production setup for this codebase.
+This is now the easiest production setup for this codebase.
 
-### 1) Create MongoDB Atlas Database
+### 1) Create Firebase Project
 
-- Create a free Atlas cluster.
-- In Atlas, create a database user and allow your backend host IP (`0.0.0.0/0` for quick setup).
-- Copy your connection string and set it as `MONGO_URI` in Render.
+- Create a Firebase project.
+- Enable Authentication (Email/Password).
+- Create Firestore Database in production or test mode.
+- From Project Settings, copy web app config keys.
 
-### 2) Deploy Backend to Render
-
-- Create a new Web Service from your GitHub repo.
-- Root directory: `backend`
-- Build command: `npm install`
-- Start command: `npm start`
-- Health check path: `/api/health`
-- Add environment variables:
-  - `PORT=5000`
-  - `NODE_ENV=production`
-  - `JWT_SECRET=<your-strong-secret>`
-  - `MONGO_URI=<your-atlas-uri>`
-  - `CLIENT_URL=<your-vercel-frontend-url>`
-
-After deploy, copy the backend URL, example:
-`https://smart-business-backend.onrender.com`
-
-### 3) Deploy Frontend to Vercel
+### 2) Deploy Frontend to Vercel
 
 - Import the same GitHub repo into Vercel.
 - Set project root to `frontend`.
 - Build command: `npm run build`
 - Output directory: `dist`
 - Add environment variable:
-  - `VITE_API_BASE_URL=https://smart-business-backend.onrender.com/api`
+  - `VITE_FIREBASE_API_KEY`
+  - `VITE_FIREBASE_AUTH_DOMAIN`
+  - `VITE_FIREBASE_PROJECT_ID`
+  - `VITE_FIREBASE_STORAGE_BUCKET`
+  - `VITE_FIREBASE_MESSAGING_SENDER_ID`
+  - `VITE_FIREBASE_APP_ID`
 
 The included `frontend/vercel.json` handles SPA route rewrites.
-
-### 4) Final CORS Step
-
-- Update backend `CLIENT_URL` on Render to your final Vercel domain:
-  - `https://<your-project>.vercel.app`
-- Redeploy backend once.
-
-## Notes for Automation Jobs in Production
-
-- The backend includes hourly `node-cron` jobs.
-- Cron runs only while the backend process is awake.
-- On free plans that sleep on inactivity, job timing can be delayed.
-- For strict reliability, use an always-on service or external scheduler.
 
 ## Implemented Modules
 

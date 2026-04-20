@@ -1,40 +1,55 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import api from "../services/api";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from "firebase/auth";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { auth, db } from "../services/firebase";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    const cached = localStorage.getItem("user");
-    return cached ? JSON.parse(cached) : null;
-  });
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem("user", JSON.stringify(user));
-    } else {
-      localStorage.removeItem("user");
-    }
-  }, [user]);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser({
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || firebaseUser.email,
+          email: firebaseUser.email,
+        });
+      } else {
+        setUser(null);
+      }
+      setAuthReady(true);
+    });
+    return unsubscribe;
+  }, []);
 
   const login = async (email, password) => {
-    const { data } = await api.post("/auth/login", { email, password });
-    localStorage.setItem("token", data.token);
-    setUser(data.user);
+    await signInWithEmailAndPassword(auth, email, password);
   };
 
   const register = async (name, email, password) => {
-    const { data } = await api.post("/auth/register", { name, email, password });
-    localStorage.setItem("token", data.token);
-    setUser(data.user);
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(credential.user, { displayName: name });
+    await setDoc(doc(db, "users", credential.user.uid), {
+      name,
+      email,
+      createdAt: serverTimestamp(),
+    });
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
-    setUser(null);
+    signOut(auth);
   };
 
-  const value = useMemo(() => ({ user, login, register, logout }), [user]);
+  const value = useMemo(() => ({ user, login, register, logout, authReady }), [user, authReady]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

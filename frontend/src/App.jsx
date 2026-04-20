@@ -10,7 +10,10 @@ import MessagesPage from "./pages/MessagesPage";
 import TasksPage from "./pages/TasksPage";
 
 const ProtectedRoute = ({ children }) => {
-  const { user } = useAuth();
+  const { user, authReady } = useAuth();
+  if (!authReady) {
+    return <div className="p-6 text-sm text-slate-600">Checking authentication...</div>;
+  }
   return user ? children : <Navigate to="/login" replace />;
 };
 

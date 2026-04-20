@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
+import { createRecord, listRecords, toJsDate } from "../services/firestoreService";
 
 const CalendarPage = () => {
+  const { user } = useAuth();
   const [meetings, setMeetings] = useState([]);
   const [posts, setPosts] = useState([]);
   const [meetingForm, setMeetingForm] = useState({
@@ -13,44 +15,54 @@ const CalendarPage = () => {
   });
 
   const loadData = async () => {
-    const [meetingRes, postRes] = await Promise.all([api.get("/meetings"), api.get("/content")]);
-    setMeetings(meetingRes.data);
-    setPosts(postRes.data);
+    if (!user?.id) return;
+    const [meetingData, postData] = await Promise.all([
+      listRecords("meetings", user.id, "date", "asc"),
+      listRecords("contentPosts", user.id, "scheduled_date", "asc"),
+    ]);
+    setMeetings(meetingData);
+    setPosts(postData);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user?.id]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
-    await api.post("/meetings", {
+    await createRecord(
+      "meetings",
+      {
       ...meetingForm,
       participants: meetingForm.participants
         .split(",")
         .map((name) => name.trim())
         .filter(Boolean),
-    });
+      },
+      user.id
+    );
     setMeetingForm({ title: "", date: "", time: "", participants: "", notes: "" });
     loadData();
   };
 
   const timeline = useMemo(() => {
     const meetingEvents = meetings.map((meeting) => ({
-      id: meeting._id,
+      id: meeting.id,
       type: "Meeting",
       title: meeting.title,
       date: meeting.date,
       details: `${meeting.time} | ${meeting.participants.join(", ")}`,
     }));
     const contentEvents = posts.map((post) => ({
-      id: post._id,
+      id: post.id,
       type: "Content",
       title: post.title,
       date: post.scheduled_date,
       details: post.platform,
     }));
-    return [...meetingEvents, ...contentEvents].sort((a, b) => new Date(a.date) - new Date(b.date));
+    return [...meetingEvents, ...contentEvents].sort(
+      (a, b) => toJsDate(a.date).getTime() - toJsDate(b.date).getTime()
+    );
   }, [meetings, posts]);
 
   return (
@@ -75,7 +87,7 @@ const CalendarPage = () => {
               <p className="text-xs uppercase text-slate-500">{item.type}</p>
               <p className="font-semibold">{item.title}</p>
               <p className="text-sm text-slate-600">
-                {new Date(item.date).toLocaleDateString()} - {item.details}
+                {toJsDate(item.date).toLocaleDateString()} - {item.details}
               </p>
             </div>
           ))}

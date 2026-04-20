@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
+import { createRecord, listRecords, toJsDate } from "../services/firestoreService";
 
 const ContentPlannerPage = () => {
+  const { user } = useAuth();
   const [posts, setPosts] = useState([]);
   const [form, setForm] = useState({
     title: "",
@@ -12,17 +14,18 @@ const ContentPlannerPage = () => {
   });
 
   const loadPosts = async () => {
-    const { data } = await api.get("/content");
+    if (!user?.id) return;
+    const data = await listRecords("contentPosts", user.id, "scheduled_date", "asc");
     setPosts(data);
   };
 
   useEffect(() => {
     loadPosts();
-  }, []);
+  }, [user?.id]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
-    await api.post("/content", form);
+    await createRecord("contentPosts", form, user.id);
     setForm({ title: "", platform: "LinkedIn", content: "", scheduled_date: "", status: "scheduled" });
     loadPosts();
   };
@@ -41,12 +44,12 @@ const ContentPlannerPage = () => {
       </form>
       <div className="grid gap-3 md:grid-cols-2">
         {posts.map((post) => (
-          <div key={post._id} className="rounded-lg bg-white p-4 shadow-sm">
+          <div key={post.id} className="rounded-lg bg-white p-4 shadow-sm">
             <p className="font-semibold">{post.title}</p>
             <p className="text-sm text-slate-600">{post.platform}</p>
             <p className="mt-2 text-sm">{post.content}</p>
             <p className="mt-1 text-xs text-slate-500">
-              {new Date(post.scheduled_date).toLocaleDateString()} - {post.status}
+              {toJsDate(post.scheduled_date).toLocaleDateString()} - {post.status}
             </p>
           </div>
         ))}

@@ -1,30 +1,43 @@
 import { useEffect, useState } from "react";
-import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
+import { createRecord, listRecords, toJsDate } from "../services/firestoreService";
+
+const defaultTemplates = [
+  { id: "t1", title: "Follow-up", body: "Hi {{name}}, just checking in on our previous conversation." },
+  { id: "t2", title: "Meeting Reminder", body: "Reminder: our meeting is scheduled for {{date}} at {{time}}." },
+];
 
 const MessagesPage = () => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [clients, setClients] = useState([]);
-  const [templates, setTemplates] = useState([]);
+  const [templates] = useState(defaultTemplates);
   const [form, setForm] = useState({ client_id: "", message_text: "", type: "sent" });
 
   const loadData = async () => {
-    const [messagesRes, clientsRes, templatesRes] = await Promise.all([
-      api.get("/messages"),
-      api.get("/clients"),
-      api.get("/messages/templates"),
+    if (!user?.id) return;
+    const [messagesData, clientsData] = await Promise.all([
+      listRecords("messages", user.id),
+      listRecords("clients", user.id),
     ]);
-    setMessages(messagesRes.data);
-    setClients(clientsRes.data);
-    setTemplates(templatesRes.data);
+    setMessages(messagesData);
+    setClients(clientsData);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user?.id]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
-    await api.post("/messages", form);
+    await createRecord(
+      "messages",
+      {
+        ...form,
+        sent_at: new Date().toISOString(),
+      },
+      user.id
+    );
     setForm({ client_id: "", message_text: "", type: "sent" });
     loadData();
   };
@@ -37,16 +50,16 @@ const MessagesPage = () => {
           <select className="rounded border p-2" value={form.client_id} onChange={(e) => setForm({ ...form, client_id: e.target.value })} required>
             <option value="">Select client</option>
             {clients.map((client) => (
-              <option key={client._id} value={client._id}>{client.name}</option>
+              <option key={client.id} value={client.id}>{client.name}</option>
             ))}
           </select>
           <select className="rounded border p-2" onChange={(e) => {
-            const selected = templates.find((template) => template._id === e.target.value);
+            const selected = templates.find((template) => template.id === e.target.value);
             if (selected) setForm((prev) => ({ ...prev, message_text: selected.body }));
           }}>
             <option value="">Use a template</option>
             {templates.map((template) => (
-              <option key={template._id} value={template._id}>{template.title}</option>
+              <option key={template.id} value={template.id}>{template.title}</option>
             ))}
           </select>
           <textarea className="rounded border p-2" placeholder="Message text" value={form.message_text} onChange={(e) => setForm({ ...form, message_text: e.target.value })} required />
@@ -59,11 +72,13 @@ const MessagesPage = () => {
       </form>
       <div className="space-y-2">
         {messages.map((message) => (
-          <div key={message._id} className="rounded-lg bg-white p-4 shadow-sm">
-            <p className="font-medium">{message.client_id?.name || "Unknown client"}</p>
+          <div key={message.id} className="rounded-lg bg-white p-4 shadow-sm">
+            <p className="font-medium">
+              {clients.find((client) => client.id === message.client_id)?.name || "Unknown client"}
+            </p>
             <p>{message.message_text}</p>
             <p className="text-xs text-slate-500">
-              {message.type} at {new Date(message.sent_at).toLocaleString()}
+              {message.type} at {toJsDate(message.sent_at).toLocaleString()}
             </p>
           </div>
         ))}

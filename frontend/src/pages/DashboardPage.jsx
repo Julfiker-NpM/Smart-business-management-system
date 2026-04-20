@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import api from "../services/api";
 import StatCard from "../components/StatCard";
+import { useAuth } from "../context/AuthContext";
+import { listRecords, toJsDate } from "../services/firestoreService";
 
 const DashboardPage = () => {
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     totalClients: 0,
     totalLeads: 0,
@@ -11,8 +13,26 @@ const DashboardPage = () => {
   });
 
   useEffect(() => {
-    api.get("/dashboard/stats").then((res) => setStats(res.data));
-  }, []);
+    const loadStats = async () => {
+      if (!user?.id) return;
+      const [clients, leads, tasks] = await Promise.all([
+        listRecords("clients", user.id),
+        listRecords("leads", user.id),
+        listRecords("tasks", user.id),
+      ]);
+      const overdueTasks = tasks.filter((task) => {
+        const isDone = task.status === "done";
+        return !isDone && toJsDate(task.due_date) < new Date();
+      }).length;
+      setStats({
+        totalClients: clients.length,
+        totalLeads: leads.length,
+        totalTasks: tasks.length,
+        overdueTasks,
+      });
+    };
+    loadStats();
+  }, [user?.id]);
 
   return (
     <section>

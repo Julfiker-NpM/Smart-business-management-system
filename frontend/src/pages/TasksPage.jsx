@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
+import { createRecord, listRecords, toJsDate } from "../services/firestoreService";
 
 const TasksPage = () => {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [form, setForm] = useState({
     title: "",
@@ -11,17 +13,18 @@ const TasksPage = () => {
   });
 
   const loadTasks = async () => {
-    const { data } = await api.get("/tasks");
+    if (!user?.id) return;
+    const data = await listRecords("tasks", user.id, "due_date", "asc");
     setTasks(data);
   };
 
   useEffect(() => {
     loadTasks();
-  }, []);
+  }, [user?.id]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
-    await api.post("/tasks", form);
+    await createRecord("tasks", form, user.id);
     setForm({ title: "", description: "", due_date: "", status: "todo" });
     loadTasks();
   };
@@ -39,11 +42,11 @@ const TasksPage = () => {
       </form>
       <div className="space-y-2">
         {tasks.map((task) => (
-          <div key={task._id} className="rounded-lg bg-white p-4 shadow-sm">
+          <div key={task.id} className="rounded-lg bg-white p-4 shadow-sm">
             <p className="font-semibold">{task.title}</p>
             <p className="text-sm text-slate-600">{task.description}</p>
             <p className="text-xs text-slate-500">
-              Due: {new Date(task.due_date).toLocaleDateString()} | Status: {task.status}
+              Due: {toJsDate(task.due_date).toLocaleDateString()} | Status: {task.status}
             </p>
           </div>
         ))}
